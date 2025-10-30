@@ -15,7 +15,6 @@ interface IndexedDocument {
 	id: string;
 	notePath: string;
 	content: string;
-	chunks: string[];
 	chunkIndex: number;
 	totalChunks: number;
 }
@@ -62,7 +61,6 @@ export class VectorDBService {
 					id: `${notePath}_chunk_${i}`,
 					notePath: notePath,
 					content: chunks[i],
-					chunks: chunks,
 					chunkIndex: i,
 					totalChunks: chunks.length
 				});
@@ -219,9 +217,9 @@ export class VectorDBService {
 		for (const sentence of sentences) {
 			if ((currentChunk + sentence).length > chunkSize && currentChunk.length > 0) {
 				chunks.push(currentChunk.trim());
-				// Add overlap
-				const words = currentChunk.split(' ');
-				currentChunk = words.slice(-overlap).join(' ') + ' ' + sentence;
+				// Add overlap by taking last 'overlap' characters
+				const overlapText = currentChunk.slice(-overlap);
+				currentChunk = overlapText + sentence;
 			} else {
 				currentChunk += (currentChunk ? ' ' : '') + sentence;
 			}
