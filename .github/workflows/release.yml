@@ -1,0 +1,49 @@
+name: Release Plugin
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build plugin
+      run: npm run build
+
+    - name: Create release package
+      run: |
+        mkdir release
+        cp main.js manifest.json release/
+        if [ -f styles.css ]; then cp styles.css release/; fi
+        cd release
+        zip -r ../obsidian-rag-vectordb-${{ github.ref_name }}.zip .
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          obsidian-rag-vectordb-${{ github.ref_name }}.zip
+          main.js
+          manifest.json
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
