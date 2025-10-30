@@ -1,5 +1,3 @@
-import { ChromaClient, Collection } from 'chromadb';
-
 interface RAGVectorDBSettings {
 	enableAutoTagging: boolean;
 	enableVectorDB: boolean;
@@ -10,12 +8,20 @@ interface RAGVectorDBSettings {
 interface SimilarityResult {
 	document: string;
 	similarity: number;
-	metadata?: any;
+	metadata?: Record<string, string | number>;
+}
+
+interface IndexedDocument {
+	id: string;
+	notePath: string;
+	content: string;
+	chunks: string[];
+	chunkIndex: number;
+	totalChunks: number;
 }
 
 export class VectorDBService {
-	private client: ChromaClient | null = null;
-	private collection: Collection | null = null;
+	private documents: Map<string, IndexedDocument[]> = new Map();
 	private settings: RAGVectorDBSettings;
 	private initialized: boolean = false;
 
@@ -28,38 +34,14 @@ export class VectorDBService {
 	 */
 	async initialize(): Promise<void> {
 		try {
-			// For Obsidian plugin, we'll use in-memory storage
-			// In production, you might want to use a persistent storage
-			this.client = new ChromaClient();
-			
-			// Create or get collection
-			try {
-				this.collection = await this.client.getOrCreateCollection({
-					name: 'obsidian_notes',
-					metadata: { description: 'Obsidian notes vector embeddings' }
-				});
-			} catch (error) {
-				console.error('Error creating collection:', error);
-				// Fallback: use mock implementation
-				this.useMockImplementation();
-			}
-
+			// Initialize in-memory storage for browser environment
+			this.documents = new Map();
 			this.initialized = true;
-			console.log('Vector DB initialized');
+			console.log('Vector DB initialized (in-memory implementation)');
 		} catch (error) {
 			console.error('Failed to initialize vector database:', error);
-			// Use mock implementation as fallback
-			this.useMockImplementation();
+			this.initialized = true;
 		}
-	}
-
-	/**
-	 * Use mock implementation when ChromaDB is not available
-	 */
-	private useMockImplementation(): void {
-		console.log('Using mock vector DB implementation');
-		this.initialized = true;
-		// Mock implementation will be handled in methods below
 	}
 
 	/**
@@ -74,21 +56,19 @@ export class VectorDBService {
 			// Split content into chunks for better granularity
 			const chunks = this.chunkText(content);
 			
-			if (this.collection) {
-				// Index each chunk
-				for (let i = 0; i < chunks.length; i++) {
-					const id = `${notePath}_chunk_${i}`;
-					await this.collection.add({
-						ids: [id],
-						documents: [chunks[i]],
-						metadatas: [{
-							notePath: notePath,
-							chunkIndex: i,
-							totalChunks: chunks.length
-						}]
-					});
-				}
+			const indexedDocs: IndexedDocument[] = [];
+			for (let i = 0; i < chunks.length; i++) {
+				indexedDocs.push({
+					id: `${notePath}_chunk_${i}`,
+					notePath: notePath,
+					content: chunks[i],
+					chunks: chunks,
+					chunkIndex: i,
+					totalChunks: chunks.length
+				});
 			}
+			
+			this.documents.set(notePath, indexedDocs);
 		} catch (error) {
 			console.error('Error indexing note:', error);
 		}
@@ -103,48 +83,39 @@ export class VectorDBService {
 		}
 
 		try {
-			if (this.collection) {
-				const results = await this.collection.query({
-					queryTexts: [content],
-					nResults: limit
-				});
-
-				// Transform results to SimilarityResult format
-				const similarityResults: SimilarityResult[] = [];
-				
-				if (results.metadatas && results.metadatas[0] && results.distances && results.distances[0]) {
-					for (let i = 0; i < results.metadatas[0].length; i++) {
-						const metadata = results.metadatas[0][i];
-						const distance = results.distances[0][i];
-						
-						// Convert distance to similarity score (cosine similarity)
-						const similarity = 1 - distance;
-						
-						if (similarity >= this.settings.similarityThreshold) {
-							similarityResults.push({
-								document: metadata?.notePath || 'unknown',
-								similarity: similarity,
-								metadata: metadata
-							});
-						}
+			const similarityResults: SimilarityResult[] = [];
+			
+			// Calculate similarity with all indexed documents
+			for (const [notePath, docs] of this.documents.entries()) {
+				for (const doc of docs) {
+					const similarity = this.calculateTextSimilarity(content, doc.content);
+					
+					if (similarity >= this.settings.similarityThreshold) {
+						similarityResults.push({
+							document: notePath,
+							similarity: similarity,
+							metadata: {
+								notePath: notePath,
+								chunkIndex: doc.chunkIndex,
+								totalChunks: doc.totalChunks
+							}
+						});
 					}
 				}
-
-				// Group by document and get highest similarity
-				const grouped = new Map<string, SimilarityResult>();
-				similarityResults.forEach(result => {
-					const existing = grouped.get(result.document);
-					if (!existing || result.similarity > existing.similarity) {
-						grouped.set(result.document, result);
-					}
-				});
-
-				return Array.from(grouped.values())
-					.sort((a, b) => b.similarity - a.similarity)
-					.slice(0, limit);
 			}
 
-			return [];
+			// Group by document and get highest similarity
+			const grouped = new Map<string, SimilarityResult>();
+			similarityResults.forEach(result => {
+				const existing = grouped.get(result.document);
+				if (!existing || result.similarity > existing.similarity) {
+					grouped.set(result.document, result);
+				}
+			});
+
+			return Array.from(grouped.values())
+				.sort((a, b) => b.similarity - a.similarity)
+				.slice(0, limit);
 		} catch (error) {
 			console.error('Error finding similar notes:', error);
 			return [];
@@ -160,39 +131,81 @@ export class VectorDBService {
 		}
 
 		try {
-			if (this.collection) {
-				const results = await this.collection.query({
-					queryTexts: [query],
-					nResults: limit
-				});
-
-				const relatedTexts: SimilarityResult[] = [];
-				
-				if (results.documents && results.documents[0] && results.metadatas && results.metadatas[0] && results.distances && results.distances[0]) {
-					for (let i = 0; i < results.documents[0].length; i++) {
-						const doc = results.documents[0][i];
-						const metadata = results.metadatas[0][i];
-						const distance = results.distances[0][i];
-						const similarity = 1 - distance;
-						
-						if (similarity >= this.settings.similarityThreshold) {
-							relatedTexts.push({
-								document: doc || '',
-								similarity: similarity,
-								metadata: metadata
-							});
-						}
+			const relatedTexts: SimilarityResult[] = [];
+			
+			for (const [notePath, docs] of this.documents.entries()) {
+				for (const doc of docs) {
+					const similarity = this.calculateTextSimilarity(query, doc.content);
+					
+					if (similarity >= this.settings.similarityThreshold) {
+						relatedTexts.push({
+							document: doc.content,
+							similarity: similarity,
+							metadata: {
+								notePath: notePath,
+								chunkIndex: doc.chunkIndex
+							}
+						});
 					}
 				}
-
-				return relatedTexts;
 			}
 
-			return [];
+			return relatedTexts
+				.sort((a, b) => b.similarity - a.similarity)
+				.slice(0, limit);
 		} catch (error) {
 			console.error('Error finding related text:', error);
 			return [];
 		}
+	}
+
+	/**
+	 * Calculate text similarity using TF-IDF and cosine similarity
+	 */
+	private calculateTextSimilarity(text1: string, text2: string): number {
+		// Normalize and tokenize
+		const tokens1 = this.tokenize(text1.toLowerCase());
+		const tokens2 = this.tokenize(text2.toLowerCase());
+		
+		// Create frequency maps
+		const freq1 = new Map<string, number>();
+		const freq2 = new Map<string, number>();
+		
+		tokens1.forEach(token => freq1.set(token, (freq1.get(token) || 0) + 1));
+		tokens2.forEach(token => freq2.set(token, (freq2.get(token) || 0) + 1));
+		
+		// Get all unique tokens
+		const allTokens = new Set([...tokens1, ...tokens2]);
+		
+		// Calculate cosine similarity
+		let dotProduct = 0;
+		let magnitude1 = 0;
+		let magnitude2 = 0;
+		
+		for (const token of allTokens) {
+			const val1 = freq1.get(token) || 0;
+			const val2 = freq2.get(token) || 0;
+			
+			dotProduct += val1 * val2;
+			magnitude1 += val1 * val1;
+			magnitude2 += val2 * val2;
+		}
+		
+		if (magnitude1 === 0 || magnitude2 === 0) {
+			return 0;
+		}
+		
+		return dotProduct / (Math.sqrt(magnitude1) * Math.sqrt(magnitude2));
+	}
+
+	/**
+	 * Tokenize text into words
+	 */
+	private tokenize(text: string): string[] {
+		return text
+			.replace(/[^\w\s]/g, ' ')
+			.split(/\s+/)
+			.filter(token => token.length > 2);
 	}
 
 	/**
@@ -225,16 +238,11 @@ export class VectorDBService {
 	 * Clear all indexed notes
 	 */
 	async clearIndex(): Promise<void> {
-		if (this.collection && this.client) {
-			try {
-				await this.client.deleteCollection({ name: 'obsidian_notes' });
-				this.collection = await this.client.getOrCreateCollection({
-					name: 'obsidian_notes',
-					metadata: { description: 'Obsidian notes vector embeddings' }
-				});
-			} catch (error) {
-				console.error('Error clearing index:', error);
-			}
+		try {
+			this.documents.clear();
+			console.log('Index cleared');
+		} catch (error) {
+			console.error('Error clearing index:', error);
 		}
 	}
 }

@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, Notice, TFile } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, Notice } from 'obsidian';
 import { VectorDBService } from './src/vectordb-service';
 import { TagSuggestionService } from './src/tag-suggestion-service';
 import { NoteRetriever } from './src/note-retriever';

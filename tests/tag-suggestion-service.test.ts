@@ -1,9 +1,17 @@
 import { TagSuggestionService } from '../src/tag-suggestion-service';
+import { App } from 'obsidian';
+
+interface RAGVectorDBSettings {
+	enableAutoTagging: boolean;
+	enableVectorDB: boolean;
+	similarityThreshold: number;
+	maxSuggestions: number;
+}
 
 describe('TagSuggestionService', () => {
 	let service: TagSuggestionService;
-	let mockApp: any;
-	let mockSettings: any;
+	let mockApp: App;
+	let mockSettings: RAGVectorDBSettings;
 
 	beforeEach(() => {
 		mockApp = {
@@ -11,7 +19,7 @@ describe('TagSuggestionService', () => {
 				getMarkdownFiles: jest.fn().mockReturnValue([]),
 				read: jest.fn(),
 			}
-		};
+		} as unknown as App;
 
 		mockSettings = {
 			enableAutoTagging: true,

@@ -1,4 +1,5 @@
 import { NoteRetriever } from '../src/note-retriever';
+import { App } from 'obsidian';
 
 describe('NoteRetriever', () => {
 	describe('extractTags', () => {
@@ -6,12 +7,12 @@ describe('NoteRetriever', () => {
 
 		beforeEach(() => {
 			// Mock App object
-			const mockApp: any = {
+			const mockApp = {
 				vault: {
 					getMarkdownFiles: jest.fn(),
 					read: jest.fn(),
 				}
-			};
+			} as unknown as App;
 			retriever = new NoteRetriever(mockApp);
 		});
 
