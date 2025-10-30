@@ -1,0 +1,10 @@
+{
+	"id": "rag-vectordb",
+	"name": "RAG Vector Database",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "A plugin that implements RAG (Retrieval-Augmented Generation) and vector database functionality for automatic grouping of related text and intelligent tag suggestions.",
+	"author": "Dhirajsinh Deshmukh",
+	"authorUrl": "https://github.com/dhirajsinhdeshmukh",
+	"isDesktopOnly": false
+}

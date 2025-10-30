@@ -1,0 +1,57 @@
+/* RAG Vector DB Plugin Styles */
+
+.rag-vectordb-ribbon-class {
+    color: var(--text-muted);
+}
+
+.rag-vectordb-ribbon-class:hover {
+    color: var(--text-normal);
+}
+
+/* Tag suggestion display */
+.tag-suggestion-container {
+    padding: 10px;
+    margin: 5px 0;
+    border-radius: 4px;
+    background-color: var(--background-secondary);
+}
+
+.tag-suggestion-item {
+    display: inline-block;
+    padding: 4px 8px;
+    margin: 2px;
+    border-radius: 3px;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.tag-suggestion-item:hover {
+    opacity: 0.8;
+}
+
+/* Similar notes display */
+.similar-notes-container {
+    padding: 10px;
+    margin: 5px 0;
+}
+
+.similar-note-item {
+    padding: 5px;
+    margin: 3px 0;
+    border-left: 3px solid var(--interactive-accent);
+    padding-left: 10px;
+}
+
+.similarity-score {
+    color: var(--text-muted);
+    font-size: 0.9em;
+}
+
+/* Settings tab enhancements */
+.setting-item-description code {
+    background-color: var(--background-modifier-border);
+    padding: 2px 4px;
+    border-radius: 2px;
+}
